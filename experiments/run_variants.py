@@ -28,19 +28,24 @@ def components(name):
     return grid, R, V
 
 
-rows = []
-for name in ['dec24', 'jun25']:
-    grid, R, V = components(name)
-    for (rn, ret), (vn, (npm, cpm)) in itertools.product(R.items(), V.items()):
-        p = grid[K + ['age_month', 'n_acquired', 'origin_retained']].copy()
-        p['predicted_retained'] = ret
-        p['predicted_net_revenue'] = np.nan_to_num(ret * npm)
-        p['predicted_contribution'] = np.nan_to_num(ret * cpm)
-        s = score(p, folds[name])
-        rows.append({'fold': name, 'retention': rn, 'value': vn, **s})
-res = pd.DataFrame(rows)
-tab = res.pivot_table(index=['retention', 'value'], columns='fold',
-                      values=['contribution_wape', 'portfolio_contribution_bias'])
-tab[('mean', 'wape')] = tab['contribution_wape'].mean(axis=1)
-print(tab.sort_values(('mean', 'wape')).round(4).to_string())
-res.to_csv(BT / 'variants.csv', index=False)
+def main_():
+    rows = []
+    for name in ['dec24', 'jun25']:
+        grid, R, V = components(name)
+        for (rn, ret), (vn, (npm, cpm)) in itertools.product(R.items(), V.items()):
+            p = grid[K + ['age_month', 'n_acquired', 'origin_retained']].copy()
+            p['predicted_retained'] = ret
+            p['predicted_net_revenue'] = np.nan_to_num(ret * npm)
+            p['predicted_contribution'] = np.nan_to_num(ret * cpm)
+            s = score(p, folds[name])
+            rows.append({'fold': name, 'retention': rn, 'value': vn, **s})
+    res = pd.DataFrame(rows)
+    tab = res.pivot_table(index=['retention', 'value'], columns='fold',
+                          values=['contribution_wape', 'portfolio_contribution_bias'])
+    tab[('mean', 'wape')] = tab['contribution_wape'].mean(axis=1)
+    print(tab.sort_values(('mean', 'wape')).round(4).to_string())
+    res.to_csv(BT / 'variants.csv', index=False)
+
+
+if __name__ == '__main__':
+    main_()

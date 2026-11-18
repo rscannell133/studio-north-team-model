@@ -13,14 +13,18 @@ import pandas as pd
 CELL = ['cohort_month', 'channel', 'primary_need']
 
 
-def cohort_age_summary(tables: dict[str, pd.DataFrame], as_of: str) -> pd.DataFrame:
-    cutoff = pd.Timestamp(as_of)
+def _transactions(tables, cutoff):
     tx = tables['transactions'].copy()
     tx['occurred_at'] = pd.to_datetime(tx.occurred_at)
     tx = tx[tx.occurred_at < cutoff]
     for c in ['gross_amount', 'discount_amount', 'refund_amount', 'variable_cost']:
         tx[c] = tx[c].astype(float).fillna(0.0)
+    return tx
 
+
+def acquired(tables: dict[str, pd.DataFrame], as_of: str) -> pd.DataFrame:
+    """person_id, cohort (Period), channel, primary_need for customers acquired before as_of."""
+    tx = _transactions(tables, pd.Timestamp(as_of))
     pay = tx[(tx.transaction_type == 'payment') & (tx.gross_amount - tx.discount_amount > 0)]
     first = pay.sort_values(['person_id', 'occurred_at', 'transaction_id']).drop_duplicates('person_id')
     first = first[['person_id', 'occurred_at']]
@@ -33,6 +37,13 @@ def cohort_age_summary(tables: dict[str, pd.DataFrame], as_of: str) -> pd.DataFr
            .merge(campaigns, left_on='credited_campaign_id', right_on='campaign_id', how='left'))
     acq['channel'] = acq.channel.fillna(acq.source_type)
     acq['cohort'] = acq.occurred_at.dt.to_period('M')
+    return acq[['person_id', 'cohort', 'channel', 'primary_need']]
+
+
+def cohort_age_summary(tables: dict[str, pd.DataFrame], as_of: str) -> pd.DataFrame:
+    cutoff = pd.Timestamp(as_of)
+    tx = _transactions(tables, cutoff)
+    acq = acquired(tables, as_of)
 
     last_month = (cutoff - pd.DateOffset(months=1)).to_period('M')
     span = (last_month.ordinal - acq.cohort.map(lambda p: p.ordinal)).to_numpy() + 1

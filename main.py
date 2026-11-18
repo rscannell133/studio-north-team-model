@@ -56,7 +56,14 @@ def predict(tables: dict[str,pd.DataFrame], prediction_grid: pd.DataFrame, *, se
     glm = MD.predict_retained(MD.fit_hazard(hist), grid)
     retained = 0.5 * sbg + 0.5 * glm
 
-    net_pm, contribution_pm = MD.predict_value(MD.fit_value(hist, calendar_trend=True), grid)
+    import tiers
+    tier_model = tiers.fit(tables, origin.strftime('%Y-%m-%d'), value_trend=True)
+    tier_retained, tier_net, tier_contribution = tiers.predict(tier_model, grid)
+    alive = tier_retained > 0
+    if (alive != (grid.origin_retained.to_numpy() > 0)).any():
+        raise ValueError('Tier model membership disagrees with origin survivors')
+    net_pm = np.divide(tier_net, tier_retained, out=np.zeros(len(grid)), where=alive)
+    contribution_pm = np.divide(tier_contribution, tier_retained, out=np.zeros(len(grid)), where=alive)
     grid['predicted_retained'] = retained
     grid['predicted_net_revenue'] = retained * net_pm
     grid['predicted_contribution'] = retained * contribution_pm
